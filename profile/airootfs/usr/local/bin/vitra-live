@@ -7,11 +7,14 @@ export QT_QPA_PLATFORM=wayland
 export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
 # no GPU driver in VMs etc.: software rendering still works
 export WLR_RENDERER_ALLOW_SOFTWARE=1
+# virtual machines usually have no 3D: no animations there
+if systemd-detect-virt -q 2>/dev/null; then export VITRAINSTALL_LITE=1; fi
 # -s: Ctrl+Alt+F2 etc. still switch to a text console
-cage -s -- vitrainstall "$@"
+# cage talks a lot on startup: into a log file, not over the screen
+cage -s -- vitrainstall "$@" >>/var/log/vitra-live.log 2>&1
 rc=$?
 if [[ $rc -ne 0 ]]; then
     echo
     echo "vitrainstall ended (code $rc). Start it again: vitra-live"
-    echo "Log: journalctl -b    |    Text console: Ctrl+Alt+F2"
+    echo "Logs: /var/log/vitra-live.log  /var/log/archinstall/install.log"
 fi

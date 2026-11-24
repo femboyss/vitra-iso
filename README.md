@@ -24,7 +24,7 @@ sudo dd if=vitra-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 sudo pacman -S --needed archiso
 ./build.sh                 # -> out/vitra-YYYY.MM.DD-x86_64.iso
-run_archiso -u -i out/vitra-*.iso   # test in QEMU (UEFI)
+./test-vm.sh               # test in QEMU (UEFI, 30 GB test disk, --fresh / --disk)
 ./release.sh               # GitHub release (splits if > 1.9 GiB)
 ```
 

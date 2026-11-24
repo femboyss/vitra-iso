@@ -15,4 +15,4 @@ size=$(stat -c %s "$iso")
 printf ':: %s  (%s MiB)\n' "$iso" "$(( size / 1024 / 1024 ))"
 (( size < 1900 * 1024 * 1024 )) && echo ":: passt in ein GitHub-Release-Asset (< 2 GiB)" \
     || echo ":: groesser als 1,9 GiB: release.sh teilt es in Teile auf"
-echo ":: testen:  run_archiso -u -i $iso     (QEMU, UEFI)"
+echo ":: testen:  ./test-vm.sh   (QEMU mit Testplatte, --fresh = neue leere Platte)"

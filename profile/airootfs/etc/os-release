@@ -1,0 +1,11 @@
+NAME="Vitra"
+PRETTY_NAME="Vitra"
+ID=vitra
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;225;40;133"
+HOME_URL="https://femboyss.github.io/vitra-web"
+DOCUMENTATION_URL="https://github.com/femboyss/vitra-iso"
+SUPPORT_URL="https://github.com/femboyss/vitra-iso/issues"
+BUG_REPORT_URL="https://github.com/femboyss/vitra-iso/issues"
+LOGO=archlinux-logo

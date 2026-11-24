@@ -7,6 +7,7 @@ command -v mkarchiso >/dev/null || { echo "!! archiso fehlt: sudo pacman -S arch
 WORK="${WORK:-/tmp/vitra-iso-work}"   # needs a few GB, /tmp is usually RAM: set WORK=... if short
 sudo rm -rf "$WORK"
 mkdir -p "$ROOT/out"
+rm -f "$ROOT/out/vitra-$(date +%Y.%m.%d)-x86_64.iso"   # rebuild of the same day
 sudo mkarchiso -v -r -w "$WORK" -o "$ROOT/out" "$ROOT/profile"
 sudo chown "$(id -u):$(id -g)" "$ROOT"/out/*.iso
 iso=$(ls -t "$ROOT"/out/vitra-*.iso | head -1)

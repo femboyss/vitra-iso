@@ -53,8 +53,12 @@ need=$(du -sm "$tmp/arch/boot" | cut -f1); free=$(df -m --output=avail "$ESP" | 
 mkdir -p "$ESP/vitra"
 cp -f "$tmp"/arch/boot/x86_64/vmlinuz-linux "$tmp"/arch/boot/x86_64/initramfs-linux.img "$ESP/vitra/"
 ucode=""
+# older ISOs ship microcode separately, newer ones have it inside the initramfs
 for u in intel-ucode amd-ucode; do
-    [[ -f $tmp/arch/boot/$u.img ]] && cp -f "$tmp/arch/boot/$u.img" "$ESP/vitra/" && ucode+="initrd /vitra/$u.img"$'\n'
+    if [[ -f $tmp/arch/boot/$u.img ]]; then
+        cp -f "$tmp/arch/boot/$u.img" "$ESP/vitra/"
+        ucode+="initrd  /vitra/$u.img"$'\n'
+    fi
 done
 
 # where the ISO lives, as the live system will see it (btrfs: subvolume path in front)
@@ -68,7 +72,7 @@ cat >"$ENTRY" <<CONF
 title   Vitra live / installer
 linux   /vitra/vmlinuz-linux
 ${ucode}initrd  /vitra/initramfs-linux.img
-options img_dev=/dev/disk/by-uuid/$uuid img_loop=$loop earlymodules=loop copytoram=y
+options archisobasedir=arch img_dev=/dev/disk/by-uuid/$uuid img_loop=$loop earlymodules=loop copytoram=y
 CONF
 echo ":: boot entry: $ENTRY"
 cat "$ENTRY"

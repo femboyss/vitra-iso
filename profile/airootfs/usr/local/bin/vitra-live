@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Vitra live session: vitrainstall fullscreen in cage (kiosk Wayland compositor)
+# (c) 2026 34 & Claude - GPL-3.0-or-later
+export XDG_RUNTIME_DIR=/run/user/0
+mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+export QT_QPA_PLATFORM=wayland
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+# no GPU driver in VMs etc.: software rendering still works
+export WLR_RENDERER_ALLOW_SOFTWARE=1
+# -s: Ctrl+Alt+F2 etc. still switch to a text console
+cage -s -- vitrainstall "$@"
+rc=$?
+if [[ $rc -ne 0 ]]; then
+    echo
+    echo "vitrainstall ended (code $rc). Start it again: vitra-live"
+    echo "Log: journalctl -b    |    Text console: Ctrl+Alt+F2"
+fi

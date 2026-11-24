@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# downloadvitra: download the newest Vitra ISO (also when it is split into parts),
+# put it back together and check it.  (c) 2026 34 & Claude - GPL-3.0-or-later
+#
+#   curl -fsSL https://github.com/femboyss/vitra-iso/releases/latest/download/downloadvitra | bash
+#   bash downloadvitra [version]      e.g. bash downloadvitra 2026.11.24
+set -euo pipefail
+REPO="${VITRA_ISO_REPO:-femboyss/vitra-iso}"
+ver="${1:-latest}"
+api="https://api.github.com/repos/$REPO/releases/latest"
+[[ $ver != latest ]] && api="https://api.github.com/repos/$REPO/releases/tags/v$ver"
+for c in curl sha256sum; do command -v "$c" >/dev/null || { echo "!! $c is missing"; exit 1; }; done
+
+echo ":: looking up the Vitra release ($ver)"
+json=$(curl -fsSL "$api") || { echo "!! release not found: $api"; exit 1; }
+tag=$(grep -m1 '"tag_name"' <<<"$json" | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+mapfile -t urls < <(grep '"browser_download_url"' <<<"$json" | sed -E 's/.*"(https[^"]+)".*/\1/')
+base="https://github.com/$REPO/releases/download/$tag"
+
+echo ":: $tag"
+curl -fL --retry 3 -o SHA256SUMS "$base/SHA256SUMS"
+iso=$(grep -m1 -E '  vitra-.*\.iso$' SHA256SUMS | awk '{print $2}')
+[[ -n $iso ]] || { echo "!! SHA256SUMS has no ISO"; exit 1; }
+
+parts=()
+for u in "${urls[@]}"; do [[ $u == *"$iso".part* ]] && parts+=("${u##*/}"); done
+
+if (( ${#parts[@]} )); then
+    IFS=$'\n' parts=($(sort <<<"${parts[*]}")); unset IFS
+    echo ":: $iso comes in ${#parts[@]} parts"
+    for p in "${parts[@]}"; do
+        echo ":: downloading $p"
+        curl -fL --retry 3 -C - -o "$p" "$base/$p"
+    done
+    echo ":: checking the parts"
+    grep -E "\.part[0-9]+$" SHA256SUMS | sha256sum -c - || { echo "!! a part is broken, run downloadvitra again (it continues where it stopped)"; exit 1; }
+    echo ":: putting $iso together"
+    cat "${parts[@]}" >"$iso"
+else
+    echo ":: downloading $iso"
+    curl -fL --retry 3 -C - -o "$iso" "$base/$iso"
+fi
+
+echo ":: checking $iso"
+grep -E "  $iso$" SHA256SUMS | sha256sum -c - || { echo "!! checksum wrong, delete $iso and run downloadvitra again"; exit 1; }
+(( ${#parts[@]} )) && rm -f "${parts[@]}"
+echo
+echo ":: ready: $PWD/$iso"
+echo "   USB stick (erases it!):  sudo dd if=$iso of=/dev/sdX bs=4M status=progress oflag=sync"

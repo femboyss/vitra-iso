@@ -1,20 +1,45 @@
 #!/usr/bin/env bash
 # Vitra live session: vitrainstall fullscreen in cage (kiosk Wayland compositor)
 # (c) 2026 34 & Claude - GPL-3.0-or-later
+#
+# Start chain, so there is always an installer on screen:
+#   1. cage + vitrainstall (GPU)            normal PCs
+#   2. cage + Qt software renderer          VMs (VMware/QEMU: GPU buffers fail there)
+#   3. framebuffer (Qt linuxfb), no cage    when cage itself can not run
+LOG=/var/log/vitra-live.log
 export XDG_RUNTIME_DIR=/run/user/0
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
-export QT_QPA_PLATFORM=wayland
 export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
-# no GPU driver in VMs etc.: software rendering still works
 export WLR_RENDERER_ALLOW_SOFTWARE=1
-# virtual machines usually have no 3D: no animations there
-if systemd-detect-virt -q 2>/dev/null; then export VITRAINSTALL_LITE=1; fi
-# -s: Ctrl+Alt+F2 etc. still switch to a text console
-# cage talks a lot on startup: into a log file, not over the screen
-cage -s -- vitrainstall "$@" >>/var/log/vitra-live.log 2>&1
-rc=$?
+
+if systemd-detect-virt -q 2>/dev/null; then
+    # virtual machine: no 3D worth using, and dmabuf import fails on vmwgfx
+    export VITRAINSTALL_LITE=1 QT_QUICK_BACKEND=software
+fi
+
+try() { # try <name> <command...>  -> exit code; "quick fail" when it died within 20 s
+    local name=$1 start rc; shift
+    echo "=== $(date '+%T') vitra-live: $name" >>"$LOG"
+    start=$(date +%s)
+    "$@" >>"$LOG" 2>&1
+    rc=$?
+    QUICK=$(( $(date +%s) - start < 20 ))
+    return "$rc"
+}
+
+QUICK=0
+try "cage" env QT_QPA_PLATFORM=wayland cage -s -- vitrainstall "$@"; rc=$?
+if (( rc != 0 && QUICK )) && [[ ${QT_QUICK_BACKEND:-} != software ]]; then
+    export VITRAINSTALL_LITE=1 QT_QUICK_BACKEND=software
+    try "cage + software renderer" env QT_QPA_PLATFORM=wayland cage -s -- vitrainstall "$@"; rc=$?
+fi
+if (( rc != 0 && QUICK )); then
+    export VITRAINSTALL_LITE=1 QT_QUICK_BACKEND=software
+    try "framebuffer" env QT_QPA_PLATFORM=linuxfb vitrainstall "$@"; rc=$?
+fi
+
 if [[ $rc -ne 0 ]]; then
     echo
     echo "vitrainstall ended (code $rc). Start it again: vitra-live"
-    echo "Logs: /var/log/vitra-live.log  /var/log/archinstall/install.log"
+    echo "Logs: $LOG  /var/log/archinstall/install.log"
 fi

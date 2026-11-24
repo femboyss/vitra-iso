@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# vitra-from-disk: start the Vitra live ISO from the INTERNAL disk, for machines whose
+# firmware refuses to boot from USB (school laptops ...). Needs an existing Linux with
+# systemd-boot.  (c) 2026 34 & Claude - GPL-3.0-or-later
+#
+#   sudo bash vitra-from-disk                 ISO from the plugged-in Vitra USB stick
+#   sudo bash vitra-from-disk path/to.iso     ISO file you downloaded
+#   sudo bash vitra-from-disk --remove        remove everything again
+#
+# What it does: copies the ISO to /vitra/vitra.iso, puts the live kernel next to your
+# kernels in the EFI partition, adds a boot entry "Vitra live / installer" and selects it
+# for the NEXT start only (bootctl set-oneshot). Your system stays as it is; without
+# --remove the entry just stays in the boot menu.
+# The live system copies itself into RAM (copytoram), so vitrainstall can even install
+# onto this very disk afterwards.
+set -euo pipefail
+die() { echo "!! $*" >&2; exit 1; }
+(( EUID == 0 )) || die "run with sudo: sudo bash $0 $*"
+command -v bootctl >/dev/null || die "bootctl not found (systemd-boot needed)"
+ESP=$(bootctl --print-esp-path 2>/dev/null) || die "no systemd-boot EFI partition found"
+ENTRY="$ESP/loader/entries/vitra-live.conf"
+DIR=/vitra
+
+if [[ ${1:-} == --remove ]]; then
+    rm -rf "$ESP/vitra" "$ENTRY" "$DIR"
+    echo ":: removed (EFI files, boot entry, $DIR)"
+    exit 0
+fi
+
+mkdir -p "$DIR"
+src=${1:-}
+if [[ -z $src ]]; then
+    dev=$(lsblk -rno PATH,LABEL | awk '$2 ~ /^VITRA_/ {print $1}' | head -1)
+    [[ -n $dev ]] || die "no Vitra USB stick found (label VITRA_...). Plug it in or give the ISO file"
+    disk="/dev/$(lsblk -no PKNAME "$dev" | head -1)"; [[ $disk != /dev/ ]] || disk=$dev
+    size=$(isosize "$disk") || die "could not read the ISO size from $disk"
+    echo ":: copying the ISO from $disk ($(( size / 1048576 )) MiB) to $DIR/vitra.iso"
+    dd if="$disk" of="$DIR/vitra.iso" bs=1M count=$(( (size + 1048575) / 1048576 )) status=progress
+else
+    [[ -f $src ]] || die "file not found: $src"
+    echo ":: copying $src to $DIR/vitra.iso"
+    cp -f "$src" "$DIR/vitra.iso"
+fi
+sync
+
+echo ":: live kernel -> $ESP/vitra"
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+bsdtar -xf "$DIR/vitra.iso" -C "$tmp" arch/boot/x86_64/vmlinuz-linux arch/boot/x86_64/initramfs-linux.img \
+    arch/boot/intel-ucode.img arch/boot/amd-ucode.img 2>/dev/null || true
+[[ -f $tmp/arch/boot/x86_64/vmlinuz-linux ]] || die "kernel not found in the ISO (broken copy?)"
+need=$(du -sm "$tmp/arch/boot" | cut -f1); free=$(df -m --output=avail "$ESP" | tail -1)
+(( free > need + 20 )) || die "EFI partition too full: need ${need} MB, free ${free} MB"
+mkdir -p "$ESP/vitra"
+cp -f "$tmp"/arch/boot/x86_64/vmlinuz-linux "$tmp"/arch/boot/x86_64/initramfs-linux.img "$ESP/vitra/"
+ucode=""
+for u in intel-ucode amd-ucode; do
+    [[ -f $tmp/arch/boot/$u.img ]] && cp -f "$tmp/arch/boot/$u.img" "$ESP/vitra/" && ucode+="initrd /vitra/$u.img"$'\n'
+done
+
+# where the ISO lives, as the live system will see it (btrfs: subvolume path in front)
+uuid=$(findmnt -no UUID --target "$DIR")
+fsroot=$(findmnt -no FSROOT --target "$DIR")
+mnt=$(findmnt -no TARGET --target "$DIR")
+rel="${DIR#$mnt}"; [[ $mnt == / ]] && rel=$DIR
+loop="${fsroot%/}${rel}/vitra.iso"; loop="/${loop#/}"
+
+cat >"$ENTRY" <<CONF
+title   Vitra live / installer
+linux   /vitra/vmlinuz-linux
+${ucode}initrd  /vitra/initramfs-linux.img
+options img_dev=/dev/disk/by-uuid/$uuid img_loop=$loop earlymodules=loop copytoram=y
+CONF
+echo ":: boot entry: $ENTRY"
+cat "$ENTRY"
+bootctl set-oneshot vitra-live.conf
+echo
+echo ":: done. Next start goes straight to Vitra (only once). Restart now:  reboot"
+echo "   Remove it again later:  sudo bash $0 --remove"

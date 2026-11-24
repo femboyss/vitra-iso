@@ -19,6 +19,19 @@ Then put it on a USB stick (erases the stick):
 sudo dd if=vitra-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
+## Laptop does not boot from USB?
+
+Some firmware (school laptops ...) refuses USB boot. If the machine already runs Linux
+with systemd-boot, start the live ISO from the internal disk instead:
+
+```
+curl -fsSL https://raw.githubusercontent.com/femboyss/vitra-iso/main/vitra-from-disk -o vitra-from-disk
+sudo bash vitra-from-disk            # takes the ISO from the plugged-in Vitra stick
+reboot
+```
+
+The next start goes straight into Vitra (once). `sudo bash vitra-from-disk --remove` cleans up.
+
 ## Build
 
 ```

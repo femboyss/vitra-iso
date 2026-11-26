@@ -44,10 +44,15 @@ sudo pacman -S --needed archiso
 ## What is different from the Arch ISO
 
 - `[vitra]` repo in the build and in the live system
-- extra packages: vitrainstall, cage, qt6-wayland, mesa, vulkan-swrast, fonts
-- tty1 starts `vitra-live` (vitrainstall in the cage kiosk compositor);
+- extra packages: vitrainstall, vitra-branding, sway, cage, qt6-wayland, mesa, vulkan-swrast, fonts
+- tty1 starts `vitra-live`: vitrainstall fullscreen in sway as a kiosk (no bar, no borders),
+  so the keyboard layout picked in the installer works right away; cage and the
+  framebuffer are fallbacks for hardware where sway does not start;
   Ctrl+Alt+F2 gives a text console, `vitra-live` starts the installer again
-- boot menu, hostname, ISO name and label say Vitra
+- boot menu (with the Vitra logo), hostname, os-release, ISO name and label say Vitra
+- mirrors: `build.sh` runs `scripts/make-mirrorlist.py`, which picks ~26 good HTTPS mirrors
+  from the official Arch mirror status (near Austria first, then worldwide, then Arch's CDN).
+  The live system and the installer use that list; nobody has to run reflector by hand
 
 ---
 

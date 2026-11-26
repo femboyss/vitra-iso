@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Vitra live session: vitrainstall fullscreen in cage (kiosk Wayland compositor)
+# Vitra live session: vitrainstall fullscreen in a kiosk Wayland compositor
 # (c) 2026 34 & Claude - GPL-3.0-or-later
 #
 # Start chain, so there is always an installer on screen:
-#   1. cage + vitrainstall (GPU)            normal PCs
-#   2. cage + Qt software renderer          VMs (VMware/QEMU: GPU buffers fail there)
-#   3. framebuffer (Qt linuxfb), no cage    when cage itself can not run
+#   1. sway kiosk + vitrainstall            normal; keyboard layout changes work live
+#   2. cage + vitrainstall (GPU)            when sway can not start
+#   3. cage + Qt software renderer          VMs (VMware/QEMU: GPU buffers fail there)
+#   4. framebuffer (Qt linuxfb), no cage    when cage itself can not run
 LOG=/var/log/vitra-live.log
 export XDG_RUNTIME_DIR=/run/user/0
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
@@ -28,7 +29,29 @@ try() { # try <name> <command...>  -> exit code; "quick fail" when it died withi
 }
 
 QUICK=0
-try "cage" env QT_QPA_PLATFORM=wayland cage -s -- vitrainstall "$@"; rc=$?
+rc=1
+SWAY_BROKEN=0
+run_sway() { # run_sway <name>: rc = installer exit code, SWAY_BROKEN=1 when sway itself failed
+    rm -f /run/vitra-live.rc
+    try "$1" env QT_QPA_PLATFORM=wayland VITRA_ARGS="$ARGS" sway --unsupported-gpu -c /etc/vitra-live/sway.conf
+    if [[ -f /run/vitra-live.rc ]]; then rc=$(</run/vitra-live.rc); else rc=1; SWAY_BROKEN=1; fi
+}
+if command -v sway >/dev/null; then
+    ARGS="$*"
+    run_sway "sway"
+    # installer crashed right away (GPU trouble): same again with Qt's software renderer
+    if (( rc != 0 && QUICK && !SWAY_BROKEN )) && [[ ${QT_QUICK_BACKEND:-} != software ]]; then
+        export VITRAINSTALL_LITE=1 QT_QUICK_BACKEND=software
+        run_sway "sway + software renderer"
+    fi
+else
+    SWAY_BROKEN=1
+fi
+# cage only when sway could not start at all
+if (( SWAY_BROKEN )); then QUICK=1; else QUICK=0; fi
+if (( rc != 0 && QUICK )); then
+    try "cage" env QT_QPA_PLATFORM=wayland cage -s -- vitrainstall "$@"; rc=$?
+fi
 if (( rc != 0 && QUICK )) && [[ ${QT_QUICK_BACKEND:-} != software ]]; then
     export VITRAINSTALL_LITE=1 QT_QUICK_BACKEND=software
     try "cage + software renderer" env QT_QPA_PLATFORM=wayland cage -s -- vitrainstall "$@"; rc=$?

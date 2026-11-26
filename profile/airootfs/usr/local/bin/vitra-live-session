@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Started by sway (/etc/vitra-live/sway.conf): runs vitrainstall, keeps its exit code, ends sway
+# (c) 2026 34 & Claude - GPL-3.0-or-later
+# shellcheck disable=SC2086  # VITRA_ARGS are plain words from vitra-live
+vitrainstall ${VITRA_ARGS:-}
+echo $? > /run/vitra-live.rc
+swaymsg exit >/dev/null 2>&1

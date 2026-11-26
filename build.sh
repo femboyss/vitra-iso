@@ -8,6 +8,9 @@ WORK="${WORK:-/tmp/vitra-iso-work}"   # needs a few GB, /tmp is usually RAM: set
 sudo rm -rf "$WORK"
 mkdir -p "$ROOT/out"
 rm -f "$ROOT/out/vitra-$(date +%Y.%m.%d)-x86_64.iso"   # rebuild of the same day
+# fresh mirrors for the live system and the installer (keeps the old list when offline)
+python3 "$ROOT/scripts/make-mirrorlist.py" "$ROOT/profile/airootfs/etc/pacman.d/mirrorlist" \
+    "$ROOT/profile/airootfs/etc/pacman.d/vitra-mirrorlist"
 sudo mkarchiso -v -r -w "$WORK" -o "$ROOT/out" "$ROOT/profile"
 sudo chown "$(id -u):$(id -g)" "$ROOT"/out/*.iso
 iso=$(ls -t "$ROOT"/out/vitra-*.iso | head -1)

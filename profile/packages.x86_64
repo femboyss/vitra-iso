@@ -129,7 +129,9 @@ zsh
 
 # --- Vitra (c) 2026 34 & Claude ---
 vitrainstall
+vitra-branding
 cage
+sway
 qt6-wayland
 mesa
 vulkan-swrast
